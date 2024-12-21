@@ -1,0 +1,9 @@
+#!/bin/bash
+
+echo "Please enter your name"
+
+read name
+
+echo "Hello welcome to the shellscripting $name"
+
+echo "End of the Script !"
