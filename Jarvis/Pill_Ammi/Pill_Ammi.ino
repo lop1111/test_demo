@@ -1,0 +1,168 @@
+#include <SPI.h>
+#include <SD.h>
+#include <TFT.h>
+
+#define PIN_SD_CS 4
+#define PIN_TFT_CS 10
+#define PIN_DC 9
+#define PIN_RST 8
+
+#define DELAY_IMAGE_SWAP 1500 // each image is shown for 60 seconds
+
+TFT TFTscreen = TFT(PIN_TFT_CS, PIN_DC, PIN_RST);
+
+//String Bluetooth_Data,Data;
+
+String Bluetooth_Data;
+String start = "start";
+String List = "menu";
+String Gallery = "gallery";
+String ON = "on";
+String OFF = "off";
+
+void setup() {
+  // initialize default serial connection to send debug information
+  Serial.begin(9600);
+  while (!Serial) {
+    // wait until default serial connection is fully set up
+  }
+
+  //The following two lines replace "TFTscreen.begin();" => avoids that red and blue (?) are swapped/interchanged
+  TFTscreen.initR(INITR_BLACKTAB);
+  TFTscreen.setRotation(0);
+  TFTscreen.background(0, 0, 0); // prints black screen to TFT display
+
+  init_SD(); // function call that initializes SD card
+
+  Menu();
+
+}
+
+void init_SD() {
+  // try to init SD card
+  TFTscreen.stroke(255, 255, 255);
+  TFTscreen.setTextSize(1);
+  TFTscreen.text("SD card init...", 0, 0);
+  Serial.print(F("SD card init..."));
+
+  delay(2000);
+
+  if (!SD.begin(PIN_SD_CS)) {
+    Serial.println(F("ERROR")); // failed
+    TFTscreen.text("ERROR...", 0, 40);
+    return;
+  }
+
+  Serial.println(F("SUCCESS")); // ok
+  TFTscreen.text("SUCCESS...", 0, 20);
+
+  delay(2000);
+  TFTscreen.background(0, 0, 0);
+}
+
+
+
+
+void loop()
+{
+
+  //  Image_Display_Function();
+
+  if (Serial.available() > 0) {
+    Bluetooth_Data = (Serial.readString());
+    //   Serial.println(Bluetooth_Data.toInt());
+    //   TFTscreen.background(0, 0, 0);
+  }
+
+  //  Bluetooth_Data.toCharArray(Data, 4);
+
+  // if (Bluetooth_Data == '1')
+
+  // TFTscreen.setTextSize(2);
+  //   TFTscreen.setCursor(0,0);
+  //  TFTscreen.stroke(255, 255, 255);
+  //  TFTscreen.setCursor(0, 20);
+  //  TFTscreen.text(Bluetooth_Data, 0, 20);
+  // TFTscreen.print(Bluetooth_Data);
+
+  if (Gallery.compareTo(Bluetooth_Data) == 0)
+  {
+    Image_Display_Function();
+  }
+
+  else if (start.compareTo(Bluetooth_Data) == 0)
+  {
+    //TFTscreen.background(0, 0, 0);
+    TFTscreen.stroke(255, 255, 255);
+    TFTscreen.fill(255, 0, 0);
+    TFTscreen.rect(0, 5, 100, 50);
+    TFTscreen.setTextSize(1);
+    TFTscreen.text("DATA-PAGE", 0, 10);
+
+    TFTscreen.fill(Bluetooth_Data.toInt(), 0, 0);
+    TFTscreen.rect(10, 50, 80, 20);
+
+  }
+  //else if (List.compareTo(Bluetooth_Data) == 0)
+  else
+  {
+  //  TFTscreen.background(0,0,0);
+    //TFTscreen.background(0, 255, 0);
+    Menu(); // To display Menu Options
+  }
+}
+
+
+void Menu()
+{
+  //  TFTscreen.background(0, 0, 255);
+  TFTscreen.stroke(255, 255, 255);
+  TFTscreen.setTextSize(1);
+  TFTscreen.text("1] Gallery", 5, 5);
+  TFTscreen.text("2] Data-Page", 5, 22);
+  TFTscreen.text("3] Menu", 5, 40                                                                                                                              );
+
+  //Serial.println(F("Press'1'-Gallery"));
+  //Serial.println(F("Press'2'-DataScreen"));
+  //Serial.println(F("Press'x'-Menu"));
+}
+
+void Image_Display_Function(void) {
+  {
+    File dir = SD.open("/"); // open root path on SD card
+    File entry;
+    char name[16] = "1";
+    bool worked_once = false;
+
+    while (entry = dir.openNextFile()) { // iteratively opens all files on SD card.
+      //      Serial.print(F("Opened File: "));
+      //      Serial.println(entry.name());
+      strcpy(name, entry.name()); // file name is copied to variable "name"
+      entry.close(); // After copying the name, we do not need the entry anymore and, therefore, close it.
+      int filename_len = strlen(name);
+      if ((filename_len >= 4 && strcmp(name + filename_len - 4, ".BMP") == 0)) { // check if the current filename ends with ".BMP". If so, we might have an image.
+        PImage image = TFTscreen.loadImage(name); // loads the file from the SD card
+        if (image.isValid()) { // If the loaded image is valid, we can display it on the TFT.
+          //       Serial.println(F("Image is valid... drawing image."));
+          TFTscreen.image(image, 0, 0); // this function call displays the image on the TFT.
+          worked_once = true; // we set this variable to true, in order to indicate that at least one image could be displayed
+          delay(DELAY_IMAGE_SWAP);
+          TFTscreen.background(0, 0, 0);
+        } else {
+          //        Serial.println(F("Image is not valid... image is not drawn."));
+        }
+        image.close(); // image is closed as we do not need it anymore.
+      } else {
+        //        Serial.println(F("Filename does not end with BMP!"));
+      }
+    }
+    dir.close(); // directory is closed
+
+
+    if (worked_once == false) { // if not a single image could be shown, we reconnect to the SD card reader.
+      //   Serial.println(F("Warning: Printing an image did not work once! Trying to reinitalize SD card reader."));
+      SD.end();
+      init_SD();
+    }
+  }
+}

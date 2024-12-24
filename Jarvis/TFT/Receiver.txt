@@ -1,0 +1,228 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+#include <SPI.h>
+#include "RF24.h"
+
+LiquidCrystal_I2C lcd(0x27, 20, 4);
+
+byte addresses[][6] = {"0"};
+RF24 myRadio (7, 8);
+
+struct package
+{
+  int x;
+  int y;
+  int Button_Status;
+  int Counter = 0;
+  int Servo_Data = 0;
+};
+
+
+typedef struct package Package;
+
+Package data;
+
+int Button_Initiate = 2;
+
+int Counter = 3;
+
+int Project_Initiate = 4;
+
+int Wireless_Initiate = 5;
+
+char processing_data;
+
+void setup()
+{
+  lcd.init();
+  lcd.backlight();
+
+  Serial.begin(9600);
+  delay(1000);
+
+  myRadio.begin();
+  myRadio.setChannel(115);
+  myRadio.setDataRate( RF24_250KBPS ) ;
+  myRadio.openWritingPipe( addresses[0]);
+
+  pinMode(A0, INPUT);
+  pinMode(A1, INPUT);
+
+  pinMode(Button_Initiate, INPUT_PULLUP);
+  pinMode(Counter, INPUT_PULLUP);
+
+  pinMode(Project_Initiate, INPUT_PULLUP);
+
+  pinMode(Wireless_Initiate, INPUT_PULLUP);
+
+  lcd.setCursor(6, 1);
+  lcd.print("JARVIS");
+
+  delay(2000);
+
+  lcd.clear();
+}
+
+
+void loop()
+{
+  if (digitalRead(Project_Initiate) == 0)
+  {
+    int X_Axis, Y_Axis, Raw_X, Raw_Y;
+
+    X_Axis = map(analogRead(A0), 0, 1023, 0, 185);
+    Y_Axis = map(analogRead(A1), 0, 1023, 0, 185);
+
+    data.x = X_Axis;
+    data.y = Y_Axis;
+
+    if (X_Axis > 100)
+    {
+      data.Servo_Data = data.Servo_Data + 5;
+    }
+    if (X_Axis < 90)
+    {
+      data.Servo_Data = data.Servo_Data - 5;
+    }
+    if (data.Servo_Data == 180 || data.Servo_Data < 0)
+    {
+      data.Servo_Data = 0;
+    }
+
+    if (digitalRead(Wireless_Initiate) == 0)
+    {
+      lcd.setCursor(12, 0);
+      lcd.print("W:");
+      lcd.setCursor(14, 0);
+      lcd.print("YES");
+    }
+    else
+    {
+      lcd.setCursor(12, 0);
+      lcd.print("W:");
+      lcd.setCursor(14, 0);
+      lcd.print("NO ");
+    }
+
+    if (digitalRead(Button_Initiate) == 0)
+    {
+      data.Button_Status = 1;
+      lcd.setCursor(8, 2);
+      lcd.print("Activated");
+      //   u8g2.drawFrame(48, 20, 24, 10);
+
+      Missile_Count();
+
+      //  u8g2.sendBuffer();
+
+
+
+    }
+    else
+    {
+      data.Button_Status = 0;
+      lcd.setCursor(8, 2);
+      lcd.print("Disabled ");
+      //    u8g2.drawFrame(76, 20, 22, 10);
+      //   u8g2.sendBuffer();
+    }
+
+
+
+    myRadio.write(&data, sizeof(data));
+
+    Lcd_Display();
+    //  Oled_Display();
+
+    //  Serial_Data_Print();
+
+    delay(25);
+  }
+  else
+  {
+    lcd.setCursor(0, 2);
+    lcd.print("PROJECT - INACTIVE");
+    delay(60);
+    lcd.clear();
+  }
+
+}
+
+// Functions Start //
+
+void Missile_Count(void)
+{
+
+
+  if (digitalRead(Counter) == 0)
+  {
+    data.Counter = data.Counter + 1;
+
+    if (data.Counter == 5) // Reset Counter
+    {
+      data.Counter = 0;
+      lcd.setCursor(10, 3);
+      lcd.print("Empty");
+    }
+  }
+
+  lcd.setCursor(0, 3);
+  lcd.print("Count:");
+  lcd.setCursor(8, 3);
+  lcd.print(data.Counter);
+
+}
+
+void Serial_Data_Print(void)
+{
+  Serial.print(data.x);
+  Serial.print(" ");
+  Serial.print(data.y);
+  Serial.print(" ");
+  Serial.print(data.Button_Status);
+  Serial.print(" ");
+  Serial.print(data.Counter);
+  Serial.print(" ");
+  Serial.println(data.Servo_Data);
+}
+
+
+
+void Lcd_Display(void)
+{
+  uint8_t bell[8]  = {0x4, 0xe, 0xe, 0xe, 0x1f, 0x0, 0x4};
+
+  if (Serial.available() > 0)
+  {
+    processing_data = Serial.read();
+  }
+
+  lcd.setCursor(18, 0);
+  lcd.createChar(0, bell);
+
+  lcd.setCursor(0, 0);
+  lcd.print("X_Axis: ");
+  lcd.setCursor(8, 0);
+  if (data.x > 150 || processing_data == 'R')
+    lcd.print("+");
+  else if (data.x < 20 || processing_data == 'L')
+    lcd.print("-");
+  else
+    lcd.print(".");
+
+
+
+  lcd.setCursor(0, 1);
+  lcd.print("Y_Axis: ");
+  lcd.setCursor(8, 1);
+  if (data.y > 150 || processing_data == 'F')
+    lcd.print("+");
+  else if (data.y < 20 || processing_data == 'B')
+    lcd.print("-");
+  else
+    lcd.print(".");
+
+  lcd.setCursor(0, 2);
+  lcd.print("Weapon:");
+}
